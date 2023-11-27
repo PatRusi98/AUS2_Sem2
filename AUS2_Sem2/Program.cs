@@ -68,6 +68,11 @@ class TestRecord : IRecord<TestRecord>
 {
     private int key;
 
+    public TestRecord()
+    {
+        this.key = 0;
+    }
+
     public TestRecord(int key)
     {
         this.key = key;

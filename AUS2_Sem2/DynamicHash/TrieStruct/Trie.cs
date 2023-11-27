@@ -6,48 +6,47 @@ namespace AUS2_Sem2.DynamicHash.TrieStruct
     {
         public InternalNode? Root { get; set; }
 
-        public Trie(List<(ExternalNode, BitArray)>? externalNodes = null)
+        public Trie()
+        {
+            Root = new InternalNode();
+            Root.Right = new ExternalNode(-1, 0, Root);
+            Root.Left = new ExternalNode(-1, 0, Root);
+        }
+
+        public Trie(List<(ExternalNode, BitArray)>? externalNodes)
         {
             Root = new InternalNode();
 
-            if (externalNodes == null)
+            foreach (var (node, bits) in externalNodes)
             {
-                Root.Right = new ExternalNode(-1, 0, Root);
-                Root.Left = new ExternalNode(-1, 0, Root);
-            }
-            else
-            {
-                foreach (var (node, bits) in externalNodes)
-                {
-                    var currentNode = Root;
-                    var insertNode = node;
-                    var bitPath = bits;
+                var currentNode = Root;
+                var insertNode = node;
+                var bitPath = bits;
 
-                    for (int i = 0; i < bitPath.Length; i++)
+                for (int i = 0; i < bitPath.Length; i++)
+                {
+                    if (bitPath[i])
                     {
-                        if (bitPath[i])
+                        if (currentNode.HasRightChild())
                         {
-                            if (currentNode.HasRightChild())
-                            {
-                                currentNode = (InternalNode)currentNode.Right;
-                            }
-                            else
-                            {
-                                currentNode.InsertRight(insertNode);
-                                break;
-                            }
+                            currentNode = (InternalNode)currentNode.Right;
                         }
                         else
                         {
-                            if (currentNode.HasLeftChild())
-                            {
-                                currentNode = (InternalNode)currentNode.Left;
-                            }
-                            else
-                            {
-                                currentNode.InsertLeft(insertNode);
-                                break;
-                            }
+                            currentNode.InsertRight(insertNode);
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if (currentNode.HasLeftChild())
+                        {
+                            currentNode = (InternalNode)currentNode.Left;
+                        }
+                        else
+                        {
+                            currentNode.InsertLeft(insertNode);
+                            break;
                         }
                     }
                 }
@@ -56,7 +55,7 @@ namespace AUS2_Sem2.DynamicHash.TrieStruct
 
         public (bool, ExternalNode?, int) FindExternalNode(BitArray data)
         {
-            var currentNode = Root;
+            Node? currentNode = Root;
             var lastNode = (ExternalNode?)null;
             var lastBit = -1;
 
@@ -65,33 +64,20 @@ namespace AUS2_Sem2.DynamicHash.TrieStruct
                 return (false, null, -1);
             }
 
-            for (int i = 0; i < data.Length; i++)
+            for (int i = 0; i < data.Count; i++)
             {
+                if (currentNode is ExternalNode)
+                {
+                    return (true, (ExternalNode)currentNode, i - 1);
+                }
+
                 if (data[i])
                 {
-                    if (currentNode.HasRightChild())
-                    {
-                        currentNode = (InternalNode?)currentNode.Right;
-                    }
-                    else
-                    {
-                        lastNode = (ExternalNode?)currentNode.Left;
-                        lastBit = i;
-                        break;
-                    }
+                    currentNode = ((InternalNode)currentNode).Right;
                 }
                 else
                 {
-                    if (currentNode.HasLeftChild())
-                    {
-                        currentNode = (InternalNode?)currentNode.Left;
-                    }
-                    else
-                    {
-                        lastNode = (ExternalNode?)currentNode.Right;
-                        lastBit = i;
-                        break;
-                    }
+                    currentNode = ((InternalNode)currentNode).Left;
                 }
             }
 
