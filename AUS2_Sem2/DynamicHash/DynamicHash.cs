@@ -19,14 +19,22 @@ namespace AUS2_Sem2.DynamicHash
         public DynamicHash(string fileName, int blockFactor, Trie? trie = null, List<long>? offsets = null)
         {
             if (trie != null)
+            {
                 Trie = trie;
+            }
             else
+            {
                 Trie = new Trie();
+            }
 
             if (offsets != null)
+            {
                 EmptyBlocksOffset = offsets;
+            }
             else
+            {
                 EmptyBlocksOffset = new List<long>();
+            }
 
             BlockSize = new Block<T>(blockFactor).GetSize();
             BlockFactor = blockFactor;
@@ -35,9 +43,9 @@ namespace AUS2_Sem2.DynamicHash
             {
                 HashFile = new FileStream(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
             }
-            catch (FileNotFoundException)
+            catch (Exception)
             {
-                throw new FieldAccessException($"HashFile not found!");
+                throw new Exception($"HashFile not found!");
             }
         }
 
@@ -51,7 +59,9 @@ namespace AUS2_Sem2.DynamicHash
                 return (block, offset);
             }
             else
+            {
                 return (null, -1);
+            }
         }
 
         public T? Find(T data)
@@ -70,28 +80,6 @@ namespace AUS2_Sem2.DynamicHash
                 }
             }
             return default(T);
-        }
-
-        public bool UpdateData(T data)
-        {
-            var result = FindBlock(data);
-            var block = result.Item1;
-            if (block != null)
-            {
-                for (int i = 0; i < block.Records.Count; i++)
-                {
-                    if (i < block.ValidCount)
-                    {
-                        if (data.Equals(block.Records[i]))
-                        {
-                            block.Records[i] = data;
-                            TryWriteBlockToFile(GetOffset(data.GetHash()), block);
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
         }
 
         public bool Insert(T data)
@@ -271,68 +259,6 @@ namespace AUS2_Sem2.DynamicHash
             }
         }
 
-        public bool Delete(T data)
-        {
-            var hash = data.GetHash();
-            var result = Trie.FindExternalNode(hash);
-            if (result.Item1)
-            {
-                var oldNode = result.Item2;
-                var block = TryReadBlockFromFile(oldNode.Offset);
-                var deleted = block.Remove(data);
-                if (deleted)
-                {
-                    oldNode.Count--;
-                    if (oldNode.Parent == Trie.Root)
-                    {
-                        if (oldNode.Count == 0)
-                        {
-                            HandleEmptyBlocks(block, oldNode);
-                            return true;
-                        }
-                        else
-                        {
-                            TryWriteBlockToFile(oldNode.Offset, block);
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        ExternalNode? sibling;
-                        while (true)
-                        {
-                            sibling = oldNode.GetSibling();
-                            if (sibling != null &&
-                                sibling.Offset != -1 &&
-                                sibling.Count + oldNode.Count <= BlockFactor &&
-                                oldNode.Parent != Trie.Root)
-                            {
-                                (oldNode, block) = MergeBlocks(oldNode, block, sibling, TryReadBlockFromFile(sibling.Offset));
-                            }
-                            else if (oldNode.Count == 0) 
-                            {
-                                HandleEmptyBlocks(block, oldNode);
-                                return true;
-                            }
-                            else
-                            {
-                                TryWriteBlockToFile(oldNode.Offset, block);
-                                return true;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                return false;
-            }
-        }
-
         public long GetOffset(BitArray hash)
         {
             var result = Trie.FindExternalNode(hash);
@@ -351,9 +277,9 @@ namespace AUS2_Sem2.DynamicHash
                 HashFile.Seek(offset, SeekOrigin.Begin);
                 HashFile.Write(block.ToByteArray());
             }
-            catch (IOException e)
+            catch (Exception e)
             {
-                throw new IOException($"Exception found during writing to file: {e.Message}");
+                throw new IOException($"Exception: {e.Message}");
             }
         }
 
@@ -367,9 +293,9 @@ namespace AUS2_Sem2.DynamicHash
                 HashFile.Seek(offset, SeekOrigin.Begin);
                 HashFile.Read(blockBytes);
             }
-            catch (IOException e)
+            catch (Exception e)
             {
-                throw new IOException($"Exception found during reading the file: {e.Message}");
+                throw new Exception($"Exception occured: {e.Message}");
             }
             block.FromByteArray(blockBytes);
             return block;
@@ -400,64 +326,6 @@ namespace AUS2_Sem2.DynamicHash
             var blockFactor = int.Parse(results[0]);
 
             return (blockFactor, results[1]);
-        }
-
-        private (ExternalNode, Block<T>) MergeBlocks(ExternalNode node1, Block<T> block1, ExternalNode node2, Block<T> block2)
-        {
-            Block<T> emptyBlock;
-            ExternalNode emptyNode;
-            Block<T> filledBlock;
-            ExternalNode filledNode;
-
-            if (node1.Offset > node2.Offset) 
-            {
-                emptyBlock = block1;
-                emptyNode = node1;
-                filledBlock = block2;
-                filledNode = node2;
-            }
-            else
-            {
-                emptyBlock = block2;
-                emptyNode = node2;
-                filledBlock = block1;
-                filledNode = node1;
-            }
-
-            for (int i = 0; i < emptyBlock.ValidCount; i++)
-            {
-                filledBlock.Insert(emptyBlock.Records[i]);
-                emptyBlock.Remove(filledBlock.Records[i]);
-            }
-
-            ExternalNode newNode = new ExternalNode((int)filledNode.Offset, filledBlock.ValidCount, filledNode.Parent.Parent);
-            HandleEmptyBlocks(emptyBlock, emptyNode);
-            return (newNode, filledBlock);
-        }
-
-        private void HandleEmptyBlocks(Block<T> emptyBlock, ExternalNode emptyNode)
-        {
-            var blockSize = emptyBlock.GetSize();
-            var fileLength = HashFile.Length;
-
-            if (fileLength - blockSize == emptyNode.Offset)
-            {
-                HashFile.SetLength(fileLength - blockSize);
-                fileLength -= blockSize;
-
-                while (EmptyBlocksOffset.Contains(fileLength - blockSize))
-                {
-                    fileLength -= blockSize;
-                    EmptyBlocksOffset.Remove(fileLength - blockSize);
-                }
-
-                HashFile.SetLength(fileLength);
-            }
-            else
-            {
-                EmptyBlocksOffset.Add(emptyNode.Offset);
-                TryWriteBlockToFile(emptyNode.Offset, emptyBlock);
-            }
         }
 
         public List<string> GetSequenceOfBlocks()

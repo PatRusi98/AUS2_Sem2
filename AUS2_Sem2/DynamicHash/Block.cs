@@ -12,7 +12,7 @@
             Records = new List<T>(blockFactor);
             for (int i = 0; i < blockFactor; i++)
             {
-                Records.Add(Activator.CreateInstance<T>().CreateClass());
+                Records.Add(Activator.CreateInstance<T>().CreateClass());  // crashuje
             }
             ValidCount = 0;
         }
